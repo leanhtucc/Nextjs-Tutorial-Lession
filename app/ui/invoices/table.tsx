@@ -3,6 +3,7 @@ import { UpdateInvoice, DeleteInvoice } from '@/app/ui/invoices/buttons';
 import InvoiceStatus from '@/app/ui/invoices/status';
 import { formatDateToLocal, formatCurrency } from '@/app/lib/utils';
 import { fetchFilteredInvoices } from '@/app/lib/data';
+import { auth } from '@/auth';
 
 export default async function InvoicesTable({
   query,
@@ -11,7 +12,12 @@ export default async function InvoicesTable({
   query: string;
   currentPage: number;
 }) {
-  const invoices = await fetchFilteredInvoices(query, currentPage);
+  const [invoices, session] = await Promise.all([
+    fetchFilteredInvoices(query, currentPage),
+    auth(),
+  ]);
+
+  const isAdmin = session?.user?.role === 'admin';
 
   return (
     <div className="mt-6 flow-root">
@@ -47,8 +53,14 @@ export default async function InvoicesTable({
                     <p>{formatDateToLocal(invoice.date)}</p>
                   </div>
                   <div className="flex justify-end gap-2">
-                    <UpdateInvoice id={invoice.id} />
-                    <DeleteInvoice id={invoice.id} />
+                    {isAdmin ? (
+                      <>
+                        <UpdateInvoice id={invoice.id} />
+                        <DeleteInvoice id={invoice.id} />
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Chỉ xem</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -72,8 +84,8 @@ export default async function InvoicesTable({
                 <th scope="col" className="px-3 py-5 font-medium">
                   Status
                 </th>
-                <th scope="col" className="relative py-3 pl-6 pr-3">
-                  <span className="sr-only">Edit</span>
+                <th scope="col" className="relative py-3 pl-6 pr-3 text-right">
+                  <span>{isAdmin ? 'Thao tác' : 'Quyền hạn'}</span>
                 </th>
               </tr>
             </thead>
@@ -108,10 +120,18 @@ export default async function InvoicesTable({
                     <InvoiceStatus status={invoice.status} />
                   </td>
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
-                    <div className="flex justify-end gap-3">
-                      <UpdateInvoice id={invoice.id} />
-                      <DeleteInvoice id={invoice.id} />
-                    </div>
+                    {isAdmin ? (
+                      <div className="flex justify-end gap-3">
+                        <UpdateInvoice id={invoice.id} />
+                        <DeleteInvoice id={invoice.id} />
+                      </div>
+                    ) : (
+                      <div className="flex justify-end">
+                        <span className="text-xs text-gray-400 italic bg-gray-50 px-2 py-1 rounded">
+                          Chỉ xem (User)
+                        </span>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

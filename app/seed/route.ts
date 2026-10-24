@@ -2,7 +2,13 @@ import bcrypt from 'bcrypt';
 import postgres from 'postgres';
 import { invoices, customers, revenue, users } from '../lib/placeholder-data';
 
-const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
+const isLocalhost =
+  process.env.POSTGRES_URL?.includes('localhost') ||
+  process.env.POSTGRES_URL?.includes('127.0.0.1');
+
+const sql = postgres(process.env.POSTGRES_URL || '', {
+  ssl: isLocalhost ? false : 'require',
+});
 
 async function seedUsers() {
   await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
@@ -11,17 +17,22 @@ async function seedUsers() {
       id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       email TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL
+      password TEXT NOT NULL,
+      role VARCHAR(20) NOT NULL DEFAULT 'user'
     );
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user';
   `;
 
   const insertedUsers = await Promise.all(
     users.map(async (user) => {
       const hashedPassword = await bcrypt.hash(user.password, 10);
       return sql`
-        INSERT INTO users (id, name, email, password)
-        VALUES (${user.id}, ${user.name}, ${user.email}, ${hashedPassword})
-        ON CONFLICT (id) DO NOTHING;
+        INSERT INTO users (id, name, email, password, role)
+        VALUES (${user.id}, ${user.name}, ${user.email}, ${hashedPassword}, ${user.role || 'user'})
+        ON CONFLICT (id) DO UPDATE SET
+          role = EXCLUDED.role,
+          name = EXCLUDED.name,
+          email = EXCLUDED.email;
       `;
     }),
   );
